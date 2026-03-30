@@ -1,0 +1,40 @@
+version: "1.0.0"
+id: "hireflow-recruitment-openenv"
+name: "HireFlow Recruitment Simulator"
+description: "A real-world technical recruiting simulation where an AI agent must fetch candidate profiles and produce budget-aware shortlists under constrained API calls."
+entrypoint:
+  module: "server.app"
+  app: "app"
+runtime:
+  python: "3.11"
+  framework: "fastapi"
+tags:
+  - "openenv"
+  - "recruitment"
+  - "hr-automation"
+  - "agent-evaluation"
+api:
+  reset: "/reset"
+  step: "/step"
+  state: "/state"
+  health: "/health"
+models:
+  action: "RecruitmentAction"
+  observation: "RecruitmentObservation"
+  reward: "RecruitmentReward"
+tasks:
+  - id: "easy_task"
+    difficulty: "easy"
+    objective: "Fetch candidate details and shortlist one role-fit Python backend candidate."
+    grader: "deterministic_rule_grader"
+    max_steps: 10
+  - id: "medium_task"
+    difficulty: "medium"
+    objective: "Precisely identify the strongest Python backend candidate while controlling compensation."
+    grader: "deterministic_rule_grader"
+    max_steps: 14
+  - id: "hard_task"
+    difficulty: "hard"
+    objective: "Optimize shortlist quality under strict 10 LPA salary cap and API call budget constraints."
+    grader: "deterministic_rule_grader"
+    max_steps: 20
