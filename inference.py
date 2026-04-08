@@ -1,11 +1,9 @@
 import json
 import os
 from typing import Dict, List
-
 from openai import OpenAI
-
-from env import HireFlowRecruitmentEnv, RecruitmentAction
-from mock_data import TASKS
+from server.env import HireFlowRecruitmentEnv, RecruitmentAction
+from server.mock_data import TASKS
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 API_KEY = os.getenv("HF_TOKEN")
