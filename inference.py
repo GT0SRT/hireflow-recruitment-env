@@ -4,8 +4,8 @@ from typing import Dict, List
 
 from openai import OpenAI
 
-from server.env import HireFlowRecruitmentEnv, RecruitmentAction
-from server.mock_data import TASKS
+from env import HireFlowRecruitmentEnv, RecruitmentAction
+from mock_data import TASKS
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 API_KEY = os.getenv("HF_TOKEN")
@@ -72,7 +72,7 @@ def llm_action(client: OpenAI, obs: Dict[str, object]) -> Dict[str, str]:
     system_prompt = (
         "You are a technical recruiter agent in HireFlow. Return exactly one JSON object with keys "
         "action_type, candidate_id (optional), rationale(optional). "
-        "Valid action_type values: list_candidates, fetch_profile, run_interview, shortlist_candidate, reject_candidate, finish."
+        "Valid action_type values: list_candidates, fetch_profile, shortlist_candidate, reject_candidate, finish."
     )
 
     user_prompt = (
@@ -97,20 +97,25 @@ def llm_action(client: OpenAI, obs: Dict[str, object]) -> Dict[str, str]:
 
 
 def run_task(env: HireFlowRecruitmentEnv, task_id: str, client: OpenAI | None) -> float:
+    print(f"[START] task={task_id}", flush=True)
+    
     obs_model = env.reset(task_id=task_id)
     obs = obs_model.model_dump()
 
     max_steps = TASKS[task_id]["max_steps"]
+    steps_taken = 0
+    
     for step_idx in range(1, max_steps + 1):
         if obs["done"]:
             break
 
+        steps_taken = step_idx
         action_dict: Dict[str, str]
+        
         if client is not None:
             try:
                 action_dict = llm_action(client, obs)
             except Exception as exc:  # noqa: BLE001
-                print(f"Task {task_id} step {step_idx}: LLM failure ({exc}), using fallback policy")
                 action_dict = fallback_policy(obs)
         else:
             action_dict = fallback_policy(obs)
@@ -122,11 +127,8 @@ def run_task(env: HireFlowRecruitmentEnv, task_id: str, client: OpenAI | None) -
 
         new_obs, reward, done, info = env.step(action)
         obs = new_obs.model_dump()
-        print(
-            f"[{task_id}] step {step_idx:02d} | action={action.action_type} "
-            f"candidate={action.candidate_id} | reward={reward.score:+.3f} | "
-            f"progress={obs['progress']:.3f} | api={obs['api_calls_used']}/{obs['api_budget']}"
-        )
+        
+        print(f"[STEP] step={step_idx} reward={reward.score}", flush=True)
 
         if done:
             break
@@ -134,6 +136,8 @@ def run_task(env: HireFlowRecruitmentEnv, task_id: str, client: OpenAI | None) -
     final_score = info.get("final_score")
     if final_score is None:
         final_score = env.state().final_score or 0.0
+
+    print(f"[END] task={task_id} score={final_score} steps={steps_taken}", flush=True)
 
     return float(final_score)
 
@@ -143,21 +147,19 @@ def main() -> None:
     if API_KEY and MODEL_NAME:
         client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     else:
-        print("HF_TOKEN or MODEL_NAME missing: running deterministic fallback baseline.")
+        print("HF_TOKEN or MODEL_NAME missing: running deterministic fallback baseline.", flush=True)
 
     env = HireFlowRecruitmentEnv()
     task_order: List[str] = ["easy_task", "medium_task", "hard_task"]
 
     scores: Dict[str, float] = {}
     for task_id in task_order:
-        print(f"\n=== Running {task_id} ({TASKS[task_id]['difficulty']}) ===")
         score = run_task(env, task_id=task_id, client=client)
         scores[task_id] = round(score, 4)
-        print(f"Final score for {task_id}: {score:.4f}")
 
     mean_score = sum(scores.values()) / len(scores)
-    print("\n=== Baseline Summary ===")
-    print(json.dumps({"scores": scores, "mean_score": round(mean_score, 4)}, indent=2))
+    print("\n=== Baseline Summary ===", flush=True)
+    print(json.dumps({"scores": scores, "mean_score": round(mean_score, 4)}, indent=2), flush=True)
 
 
 if __name__ == "__main__":
